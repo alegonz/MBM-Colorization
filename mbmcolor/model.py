@@ -6,33 +6,28 @@ from keras.layers import (Input, Conv2D, Conv2DTranspose, Dense,
 from keras.models import Model, load_model
 from keras.callbacks import ModelCheckpoint, EarlyStopping, CSVLogger, TensorBoard, TerminateOnNaN
 
-from gmdcolor.activations import log_softmax
-from gmdcolor.advanced_activations import ShiftedELU
-from gmdcolor.losses import build_gmd_log_likelihood
-from gmdcolor.callbacks import BatchLossCSVLogger
-from gmdcolor.utils.file import makedir
+from mbmcolor.losses import build_mbm_log_likelihood
 
 
-class GMDColorNet(object):
+class MBMColorNet(object):
     # TODO: Write me a documentation
 
     def __init__(self,
-                 input_shape, n_gaussians,
+                 input_shape, n_components,
                  nb_filters_per_layer, kernel_size, padding, batch_normalization,
                  optimizer='adam', es_patience=10,
                  model_path='/tmp/', weights_name_format='weights.{epoch:02d}-{val_loss:.6f}.hdf5',
                  histogram_freq=0):
 
         self.input_shape = input_shape
-        self.n_gaussians = n_gaussians
+        self.n_components = n_components
 
         self.nb_filters_per_layer = nb_filters_per_layer
         self.kernel_size = kernel_size
         self.padding = padding
         self.batch_normalization = batch_normalization
 
-        self.n_dense_log_prior = 128
-        self.n_dense_sigma_sq = 128
+        self.n_dense_prior = 128
 
         self.model_path = model_path
         self.weights_name_format = weights_name_format
@@ -40,7 +35,7 @@ class GMDColorNet(object):
         self.es_patience = es_patience
         self.histogram_freq = histogram_freq
 
-        self._loss = build_gmd_log_likelihood(input_shape, n_gaussians)
+        self._loss = build_mbm_log_likelihood(input_shape, n_components)
 
         self._input_layer = None
         self._output_layer = None
@@ -49,7 +44,8 @@ class GMDColorNet(object):
     def _build_callbacks(self):
         """Builds callbacks for training model.
         """
-        makedir(self.model_path)
+        if not os.path.exists(self.model_path):
+            os.makedirs(self.model_path)
 
         checkpointer = ModelCheckpoint(filepath=os.path.join(self.model_path, self.weights_name_format),
                                        monitor='val_loss', save_best_only=True, save_weights_only=True)
@@ -57,7 +53,6 @@ class GMDColorNet(object):
         early_stopper = EarlyStopping(monitor='val_loss', min_delta=0, patience=self.es_patience)
 
         epoch_logger = CSVLogger(os.path.join(self.model_path, 'epoch_log.csv'))
-        batch_logger = BatchLossCSVLogger(os.path.join(self.model_path, 'batch_log.csv'))
 
         tensorboard_path = os.path.join(self.model_path, 'tensorboard')
         tensorboard = TensorBoard(log_dir=tensorboard_path,
@@ -65,7 +60,7 @@ class GMDColorNet(object):
 
         terminator = TerminateOnNaN()
 
-        return [checkpointer, early_stopper, epoch_logger, batch_logger, tensorboard, terminator]
+        return [checkpointer, early_stopper, epoch_logger, tensorboard, terminator]
 
     def _custom_conv2d(self, layer, nb_filters, strides):
         # TODO: Write me a documentation
@@ -111,36 +106,25 @@ class GMDColorNet(object):
             layer = self._custom_conv2dtranspose(layer, nb_filters, (2, 2))
             layer = self._custom_conv2dtranspose(layer, nb_filters, (1, 1))
 
-        # ------ Output layers that parametrize a Gaussian Mixture Density.
+        # ------ Output layers that parametrize a Multivariate Bernoulli Mixture Density.
         # Means
-        mu = Conv2D(self.n_gaussians, kernel_size=self.kernel_size, padding='same')(layer)
+        mu = Conv2D(self.n_components, kernel_size=self.kernel_size, padding='same')(layer)
         mu = Flatten()(mu)
 
-        # Log-priors
+        # Priors
         # First squeeze the filters with a convolution before flattening
-        log_prior = Conv2D(1, kernel_size=self.kernel_size, padding='same')(bottleneck)
-        log_prior = Flatten()(log_prior)
-        log_prior = Dense(self.n_dense_log_prior, activation='relu')(log_prior)
-        log_prior = Dense(self.n_gaussians, activation=log_softmax)(log_prior)
+        prior = Conv2D(1, kernel_size=self.kernel_size, padding='same')(bottleneck)
+        prior = Flatten()(prior)
+        prior = Dense(self.n_dense_prior, activation='relu')(prior)
+        prior = Dense(self.n_components, activation='softmax')(prior)
 
-        # Variances
-        # First squeeze the filters with a convolution before flattening
-        sigma_sq = Conv2D(1, kernel_size=self.kernel_size, padding='same')(bottleneck)
-        sigma_sq = Flatten()(sigma_sq)
-        sigma_sq = Dense(self.n_dense_sigma_sq, activation='relu')(sigma_sq)
-        sigma_sq = Dense(self.n_gaussians)(sigma_sq)
-        sigma_sq = ShiftedELU(shift=1.0, alpha=1.0)(sigma_sq)
-
-        self._output_layer = Concatenate(axis=-1)([log_prior, sigma_sq, mu])
+        self._output_layer = Concatenate(axis=-1)([prior, mu])
 
     def _compile_model(self):
         self._model.compile(optimizer=self.optimizer, loss=self._loss)
 
     def build_model(self):
         """Build the model.
-
-        Args:
-            freeze (list): Name of layers to freeze in training.
         """
         self._build_layers()
         self._model = Model(self._input_layer, self._output_layer)
@@ -204,23 +188,23 @@ class GMDColorNet(object):
         Returns:
             Array of the same shape and type as the input containing the colorized image.
             Each pixel y of the colorized image is predicted as:
-                y = mu[K] where K = argmax(k)(prior[k]/sigma[k]), k is the index of each gaussian in the mixture.
+                y = mu[K] where K = argmax(k)(prior[k]), k is the index of each component in the mixture.
         """
         self._check_input_array(array)
 
         pred = self._model.predict(array)
 
-        m = self.n_gaussians
+        m = self.n_components
         _, height, width, _ = array.shape
-        splits = [m, 2*m]  # numpy.split expect locations, not sizes
+        splits = [m]  # numpy.split expect locations, not sizes
 
-        # Get GMD parameters
+        # Get MBM parameters
         # Parameters are concatenated along the second axis
-        log_prior, sigma_sq, mu = np.split(pred, axis=1, indices_or_sections=splits)
+        prior, mu = np.split(pred, axis=1, indices_or_sections=splits)
 
         mu = np.reshape(mu, (-1, height, width, m))
 
-        which = (np.exp(log_prior)/np.sqrt(sigma_sq)).argmax(axis=1)
+        which = prior.argmax(axis=1)
         sample, height, width = np.indices(array.shape[:-1])
 
         return np.expand_dims(mu[sample, height, width, which], axis=3)

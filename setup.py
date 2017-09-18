@@ -8,9 +8,9 @@ install_requires = [
 ]
 
 setup(
-    name='gmdcolor',
-    description='Image colorization with Gaussian Mixture Density network',
+    name='mbmcolor',
+    description='Image colorization with Multivariate Bernoulli Mixture Density network',
     version='0.1',
-    packages=['gmdcolor'],
+    packages=['mbmcolor'],
     install_requires=install_requires
 )
