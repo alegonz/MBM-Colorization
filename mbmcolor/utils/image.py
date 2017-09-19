@@ -1,6 +1,7 @@
 import numpy as np
 import skimage.io
 import skimage.color
+import skimage.transform
 
 # TODO: Write documentation of functions
 
@@ -25,6 +26,24 @@ def read_image(path):
     return skimage.io.imread(path)
 
 
+def resize(img, shape):
+    """Resize image to specified shape.
+
+    Args:
+        img (numpy.array): Image.
+        shape (tuple): Output shape.
+
+    Returns:
+        Resized image.
+    """
+    out = skimage.transform.resize(img, shape, preserve_range=True)
+
+    if out.dtype != 'uint8':
+        out = np.uint8(out)
+
+    return out
+
+
 def rgb2lab(img_rgb):
     """Transform image from RGB to Lab.
     This function rescales the Lab values to the [0, 1] interval.
@@ -44,9 +63,7 @@ def rgb2lab(img_rgb):
     img_lab[:, :, 1] = (img_lab[:, :, 1] - A_MIN) / (A_MAX - A_MIN)
     img_lab[:, :, 2] = (img_lab[:, :, 2] - B_MIN) / (B_MAX - B_MIN)
 
-    assert img_lab.dtype == 'float32'
-
-    return img_lab
+    return np.float32(img_lab)
 
 
 def lab2rgb(img_lab):
@@ -67,7 +84,8 @@ def lab2rgb(img_lab):
     temp[:, :, 1] = (A_MAX - A_MIN) * temp[:, :, 1] + A_MIN
     temp[:, :, 2] = (B_MAX - B_MIN) * temp[:, :, 2] + B_MIN
 
-    img_rgb = skimage.color.lab2rgb(temp)
+    img_rgb = skimage.color.lab2rgb(np.float64(temp))
+    img_rgb = np.uint8(img_rgb * 255)
 
     assert img_rgb.dtype == 'uint8'
 

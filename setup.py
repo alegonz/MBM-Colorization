@@ -1,7 +1,7 @@
 from setuptools import setup
 
 install_requires = [
-    'tensorflow-gpu==1.2.1',
+    'tensorflow-gpu==1.3',
     'Keras==2.0.8',
     'numpy==1.13.1',
     'scipy==0.19.1'

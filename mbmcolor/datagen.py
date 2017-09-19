@@ -1,13 +1,52 @@
+import os
+import random
+import glob
 import numpy as np
+
+from mbmcolor.utils.image import read_image, resize, rgb2lab, lab2rgb
 
 
 class ImagePreprocessor(object):
+    # TODO: Write me a documentation
 
-    def __init__(self, mean_shift=0.5, norm_factor=1.0):
+    def __init__(self, img_size, mean_shift=0.5, norm_factor=1.0):
+        self.img_size = img_size  # integer, height = width
         self.mean_shift = mean_shift
         self.norm_factor = norm_factor
 
-    def image2array(self, img):
+    def normalize_size(self, img):
+        """Normalize image size a la AlexNet.
+
+        Args:
+            img (numpy.array): Image.
+
+        Returns:
+            Resized and cropped image.
+        """
+        height, width, _ = img.shape
+
+        # Resize so that the shorter size is equal to img_size
+        # Then crop the central img_size patch
+        if height < width:
+
+            new_height, new_width = self.img_size, round(width * self.img_size / height)
+            img = resize(img, (new_height, new_width))
+
+            offset = (new_width - self.img_size) // 2
+            img = img[:, offset:(offset + self.img_size)]
+
+        else:
+
+            new_height, new_width = round(height * self.img_size / width), self.img_size
+            img = resize(img, (new_height, new_width))
+
+            offset = (new_height - self.img_size) // 2
+            img = img[offset:(offset + self.img_size), :]
+
+        return img
+
+    @staticmethod
+    def image2array(img):
 
         assert img.dtype == 'float32', ValueError('Input image must be float32.')
 
@@ -16,16 +55,16 @@ class ImagePreprocessor(object):
         if len(img.shape) == 2:
             array = np.expand_dims(array, axis=2)  # Add channel dimension
         elif len(img.shape) != 3:
-            raise ValueError('Input image must be either a single- or 3-channel image.')
+            raise ValueError('Input image must be either a 2D or 3D array.')
+        elif not 1 <= img.shape[2] <= 3:
+            raise ValueError('Input image must contain at most 3 channels.')
 
         array = np.expand_dims(array, axis=0)  # Add samples dimension
 
-        array -= self.mean_shift
-        array /= self.norm_factor
-
         return array
 
-    def array2image(self, array):
+    @staticmethod
+    def array2image(array):
 
         assert array.dtype == 'float32', ValueError('Input array must be float32.')
 
@@ -34,10 +73,57 @@ class ImagePreprocessor(object):
         if len(array.shape) != 4:
             raise ValueError('Input array must be 4-D (1, height, width, channels).')
 
-        img = np.squeeze(array)  # Drop non-singleton dimensions
+        img = np.squeeze(img)  # Drop non-singleton dimensions
 
-        img *= self.norm_factor
-        img += self.mean_shift
+        return img
 
-        return array
+    def image2io(self, img):
 
+        img_lab = rgb2lab(img)
+
+        i = self.image2array(img_lab[:, :, 0])
+        i -= self.mean_shift
+        i /= self.norm_factor
+
+        o = self.image2array(img_lab[:, :, 1:])
+
+        return i, o
+
+    def io2image(self, io):
+
+        i, o = io
+
+        i *= self.norm_factor
+        i += self.mean_shift
+
+        img_lab = np.concatenate((i, o), axis=3)
+        img_lab = self.array2image(img_lab)
+
+        return lab2rgb(img_lab)
+
+    def build_image_generator(self, img_path, batch_size, n_imgs):
+
+        extensions = ['jpg', 'JPG', 'jpeg', 'JPEG', 'png', 'PNG', 'bmp', 'BMP']
+        img_paths = []
+        for ext in extensions:
+            img_paths.extend(glob.glob(os.path.join(img_path, '*.' + ext)))
+
+        height = width = self.img_size
+        x = np.zeros((batch_size, height, width, 1), dtype='float32')
+        y = np.zeros((batch_size, height, width, 2), dtype='float32')
+
+        while 1:
+
+            paths = random.sample(img_paths, n_imgs)
+            n_samples = 0
+
+            for path in paths:
+
+                img = read_image(path)
+                img = self.normalize_size(img)
+                x[n_samples % batch_size], y[n_samples % batch_size] = self.image2io(img)
+
+                n_samples += 1
+
+                if n_samples % batch_size == 0:
+                    yield (x, y)
