@@ -1,4 +1,5 @@
 import os
+import warnings
 import random
 import glob
 import numpy as np
@@ -9,12 +10,19 @@ from mbmcolor.utils.image import read_image, resize, rgb2lab, lab2rgb
 class ImagePreprocessor(object):
     # TODO: Write me a documentation
 
-    def __init__(self, img_size, mean_shift=0.5, norm_factor=1.0):
-        self.img_size = img_size  # integer, height = width
+    def __init__(self, img_size, mean_shift=0.5, norm_factor=1.0, alexnet_resize=False):
+        self.img_size = img_size
         self.mean_shift = mean_shift
         self.norm_factor = norm_factor
+        self.alexnet_resize = alexnet_resize
 
-    def normalize_size(self, img):
+        if alexnet_resize and img_size[0] != img_size[1]:
+            self.img_size = (max(img_size), max(img_size))
+            message = 'alexnet_resize was specified but img_size is not square. ' \
+                      'img_size will be changed to (%d, %d)' % self.img_size
+            warnings.warn(message, Warning)
+
+    def resize_alexnet(self, img):
         """Normalize image size a la AlexNet.
 
         Args:
@@ -24,24 +32,25 @@ class ImagePreprocessor(object):
             Resized and cropped image.
         """
         height, width, _ = img.shape
+        new_size, _ = self.img_size  # img_size is square in this case
 
         # Resize so that the shorter size is equal to img_size
         # Then crop the central img_size patch
         if height < width:
 
-            new_height, new_width = self.img_size, round(width * self.img_size / height)
+            new_height, new_width = new_size, round(width * new_size / height)
             img = resize(img, (new_height, new_width))
 
-            offset = (new_width - self.img_size) // 2
-            img = img[:, offset:(offset + self.img_size)]
+            offset = (new_width - new_size) // 2
+            img = img[:, offset:(offset + new_size)]
 
         else:
 
-            new_height, new_width = round(height * self.img_size / width), self.img_size
+            new_height, new_width = round(height * new_size / width), new_size
             img = resize(img, (new_height, new_width))
 
-            offset = (new_height - self.img_size) // 2
-            img = img[offset:(offset + self.img_size), :]
+            offset = (new_height - new_size) // 2
+            img = img[offset:(offset + new_size), :]
 
         return img
 
@@ -108,7 +117,7 @@ class ImagePreprocessor(object):
         for ext in extensions:
             img_paths.extend(glob.glob(os.path.join(img_path, '*.' + ext)))
 
-        height = width = self.img_size
+        height, width = self.img_size
         x = np.zeros((batch_size, height, width, 1), dtype='float32')
         y = np.zeros((batch_size, height, width, 2), dtype='float32')
 
@@ -120,7 +129,7 @@ class ImagePreprocessor(object):
             for path in paths:
 
                 img = read_image(path)
-                img = self.normalize_size(img)
+                img = self.resize_alexnet(img)
                 x[n_samples % batch_size], y[n_samples % batch_size] = self.image2io(img)
 
                 n_samples += 1

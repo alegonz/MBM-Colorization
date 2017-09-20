@@ -87,6 +87,4 @@ def lab2rgb(img_lab):
     img_rgb = skimage.color.lab2rgb(np.float64(temp))
     img_rgb = np.uint8(img_rgb * 255)
 
-    assert img_rgb.dtype == 'uint8'
-
     return img_rgb

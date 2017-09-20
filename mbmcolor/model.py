@@ -48,7 +48,7 @@ class MBMColorNet(object):
             os.makedirs(self.model_path)
 
         checkpointer = ModelCheckpoint(filepath=os.path.join(self.model_path, self.weights_name_format),
-                                       monitor='val_loss', save_best_only=True, save_weights_only=True)
+                                       monitor='val_loss', save_best_only=True)
 
         early_stopper = EarlyStopping(monitor='val_loss', min_delta=0, patience=self.es_patience)
 
