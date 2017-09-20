@@ -108,7 +108,8 @@ class MBMColorNet(object):
 
         # ------ Output layers that parametrize a Multivariate Bernoulli Mixture Density.
         # Means
-        mu = Conv2D(self.n_components, kernel_size=self.kernel_size, padding='same')(layer)
+        # There are n_components for each of the 2 color channels.
+        mu = Conv2D(self.n_components * 2, kernel_size=self.kernel_size, padding='same')(layer)
         mu = Flatten()(mu)
 
         # Priors

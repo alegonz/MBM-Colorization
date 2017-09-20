@@ -44,7 +44,7 @@ def build_mbm_log_likelihood(input_shape, m):
         prior, mu = K.tf.split(y_pred, num_or_size_splits=splits, axis=1)
 
         y_true = K.expand_dims(y_true, axis=2)
-        mu = K.reshape(mu, [-1, height*width, m])  # -1 is for the sample dimension
+        mu = K.reshape(mu, [-1, height*width*2, m])  # -1 is for the sample dimension
         prob = K.pow(mu, y_true) * K.pow(1 - mu, 1 - y_true)
         prob = K.prod(prob, axis=1)
 

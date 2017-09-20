@@ -94,7 +94,8 @@ class ImagePreprocessor(object):
         i -= self.mean_shift
         i /= self.norm_factor
 
-        o = self.image2array(img_lab[:, :, 1:])
+        height, width, channels = img_lab[:, :, 1:].shape
+        o = np.reshape(img_lab[:, :, 1:], height * width * channels)
 
         return i, o
 
@@ -119,7 +120,7 @@ class ImagePreprocessor(object):
 
         height, width = self.img_size
         x = np.zeros((batch_size, height, width, 1), dtype='float32')
-        y = np.zeros((batch_size, height, width, 2), dtype='float32')
+        y = np.zeros((batch_size, height * width * 2), dtype='float32')
 
         while 1:
 
@@ -129,6 +130,10 @@ class ImagePreprocessor(object):
             for path in paths:
 
                 img = read_image(path)
+
+                if len(img.shape) != 3:  # Skip if it is not a color image
+                    continue
+
                 img = self.resize_alexnet(img)
                 x[n_samples % batch_size], y[n_samples % batch_size] = self.image2io(img)
 

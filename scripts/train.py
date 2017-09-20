@@ -12,13 +12,13 @@ from mbmcolor.model import MBMColorNet
 def main():
 
     # Dataset parameters
-    checkpoints_path = '/path/to/checkpoints/'
-    dataset_path = '/path/to/images/'
+    checkpoints_path = '/work/data/ilsvrc2012/analysis/checkpoints/'
+    dataset_path = '/work/data/ilsvrc2012/raw/train/'
 
     # Model parameters
     input_shape = (224, 224)  # Typical ImageNet size
     n_components = 10
-    nb_filters_per_layer = (8, 16, 32, 64, 128, 256)
+    nb_filters_per_layer = (8, 16)
     kernel_size = (3, 3)
     padding = 'same'
     batch_normalization = False
@@ -51,7 +51,8 @@ def main():
     model.summary()
 
     # Create data generators
-    gen_factory = ImagePreprocessor(mean_shift=mean_shift, norm_factor=norm_factor, alexnet_resize=alexnet_resize)
+    gen_factory = ImagePreprocessor(img_size=input_shape,
+                                    mean_shift=mean_shift, norm_factor=norm_factor, alexnet_resize=alexnet_resize)
 
     n_train_imgs = epochs * steps_per_epoch * batch_size
     train_gen = gen_factory.build_image_generator(dataset_path, batch_size=batch_size,
