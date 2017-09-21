@@ -51,16 +51,16 @@ def main():
     model.summary()
 
     # Create data generators
-    gen_factory = ImagePreprocessor(img_size=input_shape,
-                                    mean_shift=mean_shift, norm_factor=norm_factor, alexnet_resize=alexnet_resize)
+    preprocessor = ImagePreprocessor(img_size=input_shape,
+                                     mean_shift=mean_shift, norm_factor=norm_factor, alexnet_resize=alexnet_resize)
 
     n_train_imgs = epochs * steps_per_epoch * batch_size
-    train_gen = gen_factory.build_image_generator(dataset_path, batch_size=batch_size,
-                                                  n_imgs=n_train_imgs)
+    train_gen = preprocessor.build_image_generator(dataset_path, batch_size=batch_size,
+                                                   n_imgs=n_train_imgs)
 
     n_val_imgs = epochs * validation_steps * batch_size
-    val_gen = gen_factory.build_image_generator(dataset_path, batch_size=batch_size,
-                                                n_imgs=n_val_imgs)
+    val_gen = preprocessor.build_image_generator(dataset_path, batch_size=batch_size,
+                                                 n_imgs=n_val_imgs)
 
     # Train model
     if histogram_freq > 0:
