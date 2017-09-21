@@ -41,15 +41,15 @@ def build_mbm_log_likelihood(input_shape, m):
         # Get MBM parameters
         # Parameters are concatenated along the second axis
         # tf.split expect sizes, not locations
-        prior, mu = K.tf.split(y_pred, num_or_size_splits=splits, axis=1)
+        log_prior, mu = K.tf.split(y_pred, num_or_size_splits=splits, axis=1)
 
-        y_true = K.expand_dims(y_true, axis=2)
+        y_true = K.tile(K.expand_dims(y_true, axis=2), [1, 1, m])
         mu = K.reshape(mu, [-1, height*width*2, m])  # -1 is for the sample dimension
-        prob = K.pow(mu, y_true) * K.pow(1 - mu, 1 - y_true)
-        prob = K.prod(prob, axis=1)
+        prob = K.binary_crossentropy(y_true, mu, from_logits=False)
+        prob = K.sum(prob, axis=1)
 
-        prob_mixture = K.sum(prior * prob, axis=1)
+        exponent = log_prior + prob
 
-        return -K.log(prob_mixture)
+        return -K.logsumexp(exponent, axis=1)
 
     return _mbm_log_likelihood
