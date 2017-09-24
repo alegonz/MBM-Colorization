@@ -1,5 +1,7 @@
 from keras import backend as K
 
+_EPSILON = 10e-8
+
 
 def build_mbm_log_likelihood(input_shape, m):
     """Build log-likelihood loss for Multivariate Bernoulli Mixture Density.
@@ -41,13 +43,14 @@ def build_mbm_log_likelihood(input_shape, m):
         # Get MBM parameters
         # Parameters are concatenated along the second axis
         # tf.split expect sizes, not locations
-        log_prior, mu = K.tf.split(y_pred, num_or_size_splits=splits, axis=1)
+        prior, mu = K.tf.split(y_pred, num_or_size_splits=splits, axis=1)
 
         y_true = K.tile(K.expand_dims(y_true, axis=2), [1, 1, m])
-        mu = K.reshape(mu, [-1, height*width*2, m])  # -1 is for the sample dimension
-        prob = K.binary_crossentropy(y_true, mu, from_logits=False)
+        mu = K.reshape(mu, [-1, c, m])  # -1 is for the sample dimension
+        prob = - K.binary_crossentropy(y_true, mu, from_logits=False)  # Undo the negative inside binary crossentropy
         prob = K.sum(prob, axis=1)
 
+        log_prior = K.log(K.clip(prior, _EPSILON, 1 - _EPSILON))
         exponent = log_prior + prob
 
         return -K.logsumexp(exponent, axis=1)

@@ -7,7 +7,6 @@ from keras.models import Model, load_model
 from keras.callbacks import ModelCheckpoint, EarlyStopping, CSVLogger, TensorBoard, TerminateOnNaN
 
 from mbmcolor.losses import build_mbm_log_likelihood
-from mbmcolor.activations import log_softmax
 
 
 class MBMColorNet(object):
@@ -115,12 +114,12 @@ class MBMColorNet(object):
 
         # Priors
         # First squeeze the filters with a convolution before flattening
-        log_prior = Conv2D(1, kernel_size=self.kernel_size, padding='same')(bottleneck)
-        log_prior = Flatten()(log_prior)
-        log_prior = Dense(self.n_dense_prior, activation='relu')(log_prior)
-        log_prior = Dense(self.n_components, activation=log_softmax)(log_prior)
+        prior = Conv2D(1, kernel_size=self.kernel_size, padding='same')(bottleneck)
+        prior = Flatten()(prior)
+        prior = Dense(self.n_dense_prior, activation='relu')(prior)
+        prior = Dense(self.n_components, activation='softmax')(prior)
 
-        self._output_layer = Concatenate(axis=-1)([log_prior, mu])
+        self._output_layer = Concatenate(axis=-1)([prior, mu])
 
     def _compile_model(self):
         self._model.compile(optimizer=self.optimizer, loss=self._loss)
@@ -202,11 +201,11 @@ class MBMColorNet(object):
 
         # Get MBM parameters
         # Parameters are concatenated along the second axis
-        log_prior, mu = np.split(pred, axis=1, indices_or_sections=splits)
+        prior, mu = np.split(pred, axis=1, indices_or_sections=splits)
 
         mu = np.reshape(mu, (-1, height, width, m))
 
-        which = log_prior.argmax(axis=1)
+        which = prior.argmax(axis=1)
         sample, height, width = np.indices(array.shape[:-1])
 
         return np.expand_dims(mu[sample, height, width, which], axis=3)
