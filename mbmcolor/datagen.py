@@ -94,7 +94,8 @@ class ImagePreprocessor(object):
         i -= self.mean_shift
         i /= self.norm_factor
 
-        height, width, channels = img_lab[:, :, 1:].shape
+        height, width, _ = img_lab[:, :, 1:].shape
+        channels = 2  # TODO: Refactor channels
         o = np.reshape(img_lab[:, :, 1:], height * width * channels)
 
         return i, o
@@ -106,6 +107,10 @@ class ImagePreprocessor(object):
         i *= self.norm_factor
         i += self.mean_shift
 
+        _, height, width, _ = i.shape
+        channels = 2  # TODO: Refactor channels
+        o = np.reshape(o, (1, height, width, channels))
+
         img_lab = np.concatenate((i, o), axis=3)
         img_lab = self.array2image(img_lab)
 
@@ -113,10 +118,8 @@ class ImagePreprocessor(object):
 
     def build_image_generator(self, img_path, batch_size, n_imgs):
 
-        extensions = ['jpg', 'JPG', 'jpeg', 'JPEG', 'png', 'PNG', 'bmp', 'BMP']
-        img_paths = []
-        for ext in extensions:
-            img_paths.extend(glob.glob(os.path.join(img_path, '*.' + ext)))
+        img_paths = glob.glob(os.path.join(img_path, '*.JPEG'))
+        paths = random.sample(img_paths, n_imgs)
 
         height, width = self.img_size
         x = np.zeros((batch_size, height, width, 1), dtype='float32')
@@ -124,20 +127,24 @@ class ImagePreprocessor(object):
 
         while 1:
 
-            paths = random.sample(img_paths, n_imgs)
             n_samples = 0
 
             for path in paths:
 
-                img = read_image(path)
+                try:
+                    img = read_image(path)
 
-                if len(img.shape) != 3:  # Skip if it is not a color image
-                    continue
+                except Exception as e:
+                    print(e.message)
 
-                img = self.resize_alexnet(img)
-                x[n_samples % batch_size], y[n_samples % batch_size] = self.image2io(img)
+                else:
+                    if len(img.shape) != 3:  # Skip if it is not a color image
+                        continue
 
-                n_samples += 1
+                    img = self.resize_alexnet(img)
+                    x[n_samples % batch_size], y[n_samples % batch_size] = self.image2io(img)
 
-                if n_samples % batch_size == 0:
-                    yield (x, y)
+                    n_samples += 1
+
+                    if n_samples % batch_size == 0:
+                        yield (x, y)

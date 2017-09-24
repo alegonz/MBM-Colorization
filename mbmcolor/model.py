@@ -15,6 +15,7 @@ class MBMColorNet(object):
     def __init__(self,
                  input_shape, n_components,
                  nb_filters_per_layer, kernel_size, padding, batch_normalization,
+                 n_dense_prior,
                  optimizer='adam', es_patience=10,
                  model_path='/tmp/', weights_name_format='weights.{epoch:02d}-{val_loss:.6f}.hdf5',
                  histogram_freq=0):
@@ -27,7 +28,7 @@ class MBMColorNet(object):
         self.padding = padding
         self.batch_normalization = batch_normalization
 
-        self.n_dense_prior = 128
+        self.n_dense_prior = n_dense_prior
 
         self.model_path = model_path
         self.weights_name_format = weights_name_format
@@ -96,7 +97,7 @@ class MBMColorNet(object):
 
         for i, nb_filters in enumerate(self.nb_filters_per_layer):
             layer = self._custom_conv2d(layer, nb_filters, (1, 1))
-            layer = self._custom_conv2d(layer, nb_filters, (1, 1))
+            # layer = self._custom_conv2d(layer, nb_filters, (1, 1))
             layer = self._custom_conv2d(layer, nb_filters, (2, 2))
 
         bottleneck = layer
@@ -104,7 +105,7 @@ class MBMColorNet(object):
         for i, nb_filters in enumerate(self.nb_filters_per_layer[::-1]):
             layer = self._custom_conv2dtranspose(layer, nb_filters, (1, 1))
             layer = self._custom_conv2dtranspose(layer, nb_filters, (2, 2))
-            layer = self._custom_conv2dtranspose(layer, nb_filters, (1, 1))
+            # layer = self._custom_conv2dtranspose(layer, nb_filters, (1, 1))
 
         # ------ Output layers that parametrize a Multivariate Bernoulli Mixture Density.
         # Means
@@ -114,7 +115,7 @@ class MBMColorNet(object):
 
         # Priors
         # First squeeze the filters with a convolution before flattening
-        prior = Conv2D(1, kernel_size=self.kernel_size, padding='same')(bottleneck)
+        prior = Conv2D(1, kernel_size=self.kernel_size, padding='same', activation='relu')(bottleneck)
         prior = Flatten()(prior)
         prior = Dense(self.n_dense_prior, activation='relu')(prior)
         prior = Dense(self.n_components, activation='softmax')(prior)
