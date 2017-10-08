@@ -1,0 +1,14 @@
+% MBM equations
+\newcommand{\vect}[1]{\boldsymbol{\mathbf{#1}}}
+
+\begin{gathered}
+    p(\vect{t}|\vect{x}) = \sum_{k=1}^{m} \alpha_i(\vect{x}) \phi_k(\vect{t}|\vect{x}) \\
+    \phi_k(\vect{t}|\vect{x}) = \prod_{i=1}^{c} \mu_{ki}(\vect{x})^{t_i} (1 - \mu_{ki}(\vect{x}))^{1 - t_i}
+\end{gathered}
+
+% MBM loss function
+\newcommand{\vect}[1]{\boldsymbol{\mathbf{#1}}}
+
+\begin{gathered}
+    J(\vect{\theta};\vect{x},\vect{t}) = - \sum_{n=1}^{N} \log \sum_{k=1}^{m} \exp \left\{ \log(\alpha_k(\vect{x}_n)) + \sum_{i=1}^c \Big[ t_i\log(\mu_{ki}(\vect{x}_n)) + (1 - t_i)\log(1 - \mu_{ki}(\vect{x}_n)) \Big] \right\}
+\end{gathered}
